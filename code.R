@@ -10,6 +10,12 @@ library(skimr)
 library(bizdays)
 library(janitor) 
 
+#### use exception report for active
+#### Latest inventory needs to be used for inventory > 0
+#### Branch transfer and open order -> also use MicroStrategy file
+#### For forecast info, use DSX
+
+
 ##################################################################################################################################################################
 ##################################################################################################################################################################
 ##################################################################################################################################################################
@@ -17,7 +23,7 @@ library(janitor)
 
 
 # Read in the data
-iqr_fg <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/IQR Automation/FG/weekly run data/2024/07.16.2024/Finished Goods Inventory Health Adjusted Forward (IQR) NEW TEMPLATE - 07.16.2024.xlsx",
+iqr_fg <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/IQR Automation/FG/weekly run data/2024/08.27.2024/Finished Goods Inventory Health Adjusted Forward (IQR) NEW TEMPLATE - 08.27.2024.xlsx",
                                   sheet = "Location FG")
 
 
