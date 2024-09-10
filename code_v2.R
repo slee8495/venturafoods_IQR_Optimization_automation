@@ -31,6 +31,7 @@ jde_25_55_label <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Wo
 lot_status_code <- read_excel("S:/Supply Chain Projects/Data Source (SCE)/Lot Status Code.xlsx")
 rm_to_sku <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/IQR Automation/RM/Weekly Report run/2024/09.03.2024/Raw Material Inventory Health (IQR) NEW TEMPLATE - 09.03.2024.xlsx", 
                         sheet = "RM to SKU")
+bom <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/BoM version 2/Weekly Run/2024/09.03.2024/Bill of Material_090324.xlsx")
 
 ###################################################################
 
@@ -250,42 +251,20 @@ has_on_hand_inventory_rm %>%
 
 # 2. Zero inventory but has dependent demand for next 6 months
 
-
-
-
-dsx %>% 
+bom %>% 
   janitor::clean_names() %>% 
-  dplyr::select(forecast_month_year_id, location_no, product_label_sku_code, adjusted_forecast_cases) %>% 
-  dplyr::mutate(forecast_month_year_id = as.double(forecast_month_year_id),
-                location_no = as.double(location_no),
-                adjusted_forecast_cases = as.double(adjusted_forecast_cases)) %>% 
-  dplyr::rename(forecast_month = forecast_month_year_id,
-                location = location_no,
-                item = product_label_sku_code,
-                forecast = adjusted_forecast_cases) %>% 
-  dplyr::mutate(item = gsub("-", "", item)) %>%
-  dplyr::mutate(ref = paste0(location, "_", item)) %>% 
-  dplyr::filter(forecast_month >= as.numeric(format(floor_date(today(), "month"), "%Y%m")) &
-                  forecast_month <= as.numeric(format(floor_date(today() + months(5), "month"), "%Y%m"))) %>% 
-  dplyr::mutate(forecast = ifelse(is.na(forecast), 0, forecast)) %>% 
-  dplyr::group_by(ref) %>%
-  dplyr::summarise(forecast = sum(forecast)) %>% 
-  tidyr::separate(ref, into = c("location", "item"), sep = "_") %>% 
-  dplyr::mutate(ref = paste0(location, "_", item)) %>% 
-  dplyr::filter(forecast > 0) %>% 
-  dplyr::select(item) %>% 
-  dplyr::mutate(y = "y") -> dependent_demand_rm_1
-
-
-rm_to_sku %>% 
-  janitor::clean_names() %>% 
-  dplyr::select(comp_ref, parent_item_number) %>% 
-  dplyr::rename(item = parent_item_number) %>% 
-  dplyr::left_join(dependent_demand_rm_1) %>% 
-  dplyr::filter(y == "y") %>% 
+  dplyr::select(comp_ref, mon_a_fcst, mon_b_fcst, mon_c_fcst, mon_d_fcst, mon_e_fcst, mon_f_fcst) %>% 
+  dplyr::mutate(dep_demand = mon_a_fcst + mon_b_fcst + mon_c_fcst + mon_d_fcst + mon_e_fcst + mon_f_fcst) %>% 
+  dplyr::filter(dep_demand > 0) %>% 
+  dplyr::select(comp_ref) %>% 
   dplyr::distinct(comp_ref) %>% 
   tidyr::separate(comp_ref, into = c("location", "item"), sep = "-") %>% 
-  dplyr::mutate(ref = paste0(location, "_", item)) -> zero_on_hand_has_dependent_demand_rm
+  plyr::mutate(ref = paste0(location, "_", item)) -> zero_on_hand_has_dependent_demand_rm
+
+
+
+
+
 
 
 #  3. Zero inventory, no dependent demand for next 6 months but show ACTIVE in JDE
