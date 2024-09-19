@@ -10,10 +10,7 @@ library(skimr)
 library(bizdays)
 library(janitor) 
 
-#### use exception report for active
-#### Latest inventory needs to be used for inventory > 0
-#### Branch transfer and open order -> also use MicroStrategy file
-#### For forecast info, use DSX
+
 
 
 ##################################################################################################################################################################
@@ -32,6 +29,7 @@ lot_status_code <- read_excel("S:/Supply Chain Projects/Data Source (SCE)/Lot St
 rm_to_sku <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/IQR Automation/RM/Weekly Report run/2024/09.03.2024/Raw Material Inventory Health (IQR) NEW TEMPLATE - 09.03.2024.xlsx", 
                         sheet = "RM to SKU")
 bom <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/BoM version 2/Weekly Run/2024/09.03.2024/Bill of Material_090324.xlsx")
+campus_ref <- read_excel("S:/Supply Chain Projects/Data Source (SCE)/Campus reference.xlsx")
 
 ###################################################################
 
@@ -162,90 +160,43 @@ inventory_rm[-1, ] -> inventory_rm
 
 inventory_rm %>% 
   janitor::clean_names() %>% 
-  dplyr::select(location, item, current_inventory_balance) %>% 
+  dplyr::select(campus_no, item, current_inventory_balance) %>% 
   dplyr::rename(inventory = current_inventory_balance) %>% 
   dplyr::mutate(inventory = as.double(inventory)) %>% 
-  dplyr::mutate(ref = paste0(location, "_", item)) %>% 
+  dplyr::mutate(ref = paste0(campus_no, "_", item)) %>% 
   dplyr::group_by(ref) %>% 
   dplyr::summarise(inventory = sum(inventory)) %>% 
-  tidyr::separate(ref, into = c("location", "item"), sep = "_") %>%
-  dplyr::mutate(location = as.double(location),
+  tidyr::separate(ref, into = c("campus", "item"), sep = "_") %>%
+  dplyr::mutate(campus = as.double(campus),
                 item = as.double(item)) %>%
-  dplyr::filter(inventory > 0) %>%
-  dplyr::mutate(ref = paste0(location, "_", item)) %>%
+  dplyr::mutate(ref = paste0(campus, "_", item)) %>%
   dplyr::filter(inventory > 0) %>% 
   dplyr::select(-inventory) -> has_on_hand_inventory_rm_1
-
-
-
-
-
-
-lot_status_code %>% 
-  janitor::clean_names() %>% 
-  dplyr::select(lot_status, hard_soft_hold) %>% 
-  dplyr::mutate(lot_status = ifelse(is.na(lot_status), "Useable", lot_status),
-                hard_soft_hold = ifelse(is.na(hard_soft_hold), "Useable", hard_soft_hold)) %>% 
-  dplyr::rename(status = lot_status) -> lot_status_code
-
-
 
 
 jde_25_55_label[-1:-5, ] -> jde_25_55_label
 colnames(jde_25_55_label) <- jde_25_55_label[1, ]
 jde_25_55_label[-1, ] -> jde_25_55_label
 
-
-
 jde_25_55_label %>% 
   janitor::clean_names() %>% 
-  dplyr::rename(b_p = bp,
-                item = item_number) %>% 
-  dplyr::mutate(status = ifelse(is.na(status), "Useable", status)) %>% 
-  dplyr::mutate(item = as.numeric(item),
-                on_hand = as.numeric(on_hand),
-                b_p = as.numeric(b_p)) %>% 
-  dplyr::filter(!is.na(item)) %>% 
-  dplyr::left_join(lot_status_code, by = "status") %>% 
-  dplyr::select(-status) %>% 
-  pivot_wider(names_from = hard_soft_hold, values_from = on_hand, values_fn = list(on_hand = sum)) %>% 
-  janitor::clean_names() %>% 
-  replace_na(list(useable = 0, soft_hold = 0, hard_hold = 0)) %>% 
-  dplyr::left_join(exception_report %>% 
-                     janitor::clean_names() %>%
-                     dplyr::rename(item = item_number) %>% 
-                     dplyr::select(item, mpf_or_line) %>% 
-                     dplyr::rename(label = mpf_or_line) %>% 
-                     dplyr::mutate(item = as.double(item)) %>% 
-                     dplyr::filter(label == "LBL") %>% 
-                     dplyr::distinct(item, label)) %>% 
-  dplyr::filter(!is.na(label)) %>% 
-  dplyr::select(-label) %>% 
-  dplyr::mutate(ref = paste0(b_p, "_", item)) %>% 
-  dplyr::mutate(useable = useable + soft_hold) %>% 
-  dplyr::mutate(on_hand = useable + hard_hold) %>%
-  dplyr::select(ref, hard_hold, soft_hold, useable) %>% 
-  dplyr::rename(Hard_Hold = hard_hold,
-                Soft_Hold = soft_hold,
-                Useable = useable) %>% 
-  dplyr::mutate(Useable_temp = Useable,
-                comp_ref = ref) %>% 
-  dplyr::relocate(ref, Hard_Hold, Soft_Hold, Useable_temp, comp_ref, Useable) %>% 
-  dplyr::mutate(inventory = Useable + Soft_Hold + Hard_Hold) %>% 
-  dplyr::group_by(ref) %>%
-  dplyr::summarise(inventory = sum(inventory)) %>% 
-  tidyr::separate(ref, into = c("location", "item"), sep = "_") %>%
-  dplyr::mutate(location = as.double(location),
-                item = as.double(item)) %>%
-  dplyr::filter(inventory > 0) %>%
-  dplyr::mutate(ref = paste0(location, "_", item)) %>%
-  dplyr::filter(inventory > 0) %>% 
-  dplyr::select(-inventory) -> has_on_hand_inventory_rm_2
+  dplyr::filter(mpf == "LBL") %>% 
+  dplyr::mutate(on_hand = as.double(on_hand)) %>% 
+  dplyr::filter(on_hand > 0) %>%
+  dplyr::select(bp, item_number) %>% 
+  dplyr::left_join(campus_ref %>% janitor::clean_names() %>% select(location, campus) %>% rename(bp = location)) %>% 
+  dplyr::mutate(ref = paste0(campus, "_", item_number)) %>% 
+  dplyr::distinct(ref) %>% 
+  tidyr::separate(ref, into = c("campus", "item"), sep = "_") %>%
+  dplyr::mutate(campus = as.double(campus),
+                item = as.double(item)) %>% 
+  dplyr::mutate(ref = paste0(campus, "_", item)) -> has_on_hand_inventory_rm_2
+  
 
 bind_rows(has_on_hand_inventory_rm_1, has_on_hand_inventory_rm_2) -> has_on_hand_inventory_rm
 
 has_on_hand_inventory_rm %>% 
-  dplyr::mutate(location = as.character(location),
+  dplyr::mutate(campus = as.character(campus),
                 item = as.character(item)) -> has_on_hand_inventory_rm
 
 
@@ -258,8 +209,8 @@ bom %>%
   dplyr::filter(dep_demand > 0) %>% 
   dplyr::select(comp_ref) %>% 
   dplyr::distinct(comp_ref) %>% 
-  tidyr::separate(comp_ref, into = c("location", "item"), sep = "-") %>% 
-  plyr::mutate(ref = paste0(location, "_", item)) -> zero_on_hand_has_dependent_demand_rm
+  tidyr::separate(comp_ref, into = c("campus", "item"), sep = "-") %>% 
+  plyr::mutate(ref = paste0(campus, "_", item)) -> zero_on_hand_has_dependent_demand_rm
 
 
 
@@ -271,11 +222,18 @@ bom %>%
 exception_report %>% 
   janitor::clean_names() %>% 
   dplyr::select(b_p, item_number) %>% 
-  dplyr::mutate(ref = paste0(b_p, "_", item_number)) %>% 
-  dplyr::rename(location = b_p, item = item_number) %>% 
+  dplyr::left_join(campus_ref %>% janitor::clean_names() %>% select(location, campus) %>% rename(b_p = location)) %>% 
+  dplyr::mutate(ref = paste0(campus, "_", item_number)) %>% 
+  dplyr::select(campus, item_number, ref) %>% 
+  dplyr::rename(item = item_number) %>% 
   dplyr::distinct(ref, .keep_all = TRUE) %>%
   dplyr::filter(stringr::str_detect(item, "^[0-9]+$")) %>% 
   dplyr::distinct(ref, .keep_all = TRUE) -> active_items_rm
+
+
+active_items_rm %>% 
+  dplyr::mutate(campus = as.character(campus),
+                item = as.character(item)) -> active_items_rm
 
 
 dplyr::bind_rows(has_on_hand_inventory_rm, 
