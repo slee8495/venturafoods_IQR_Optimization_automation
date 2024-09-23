@@ -26,8 +26,6 @@ oo_bt_fg <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/
 dsx <- read_excel("S:/Global Shared Folders/Large Documents/S&OP/Demand Planning/BI Forecast Backup/2024/DSX Forecast Backup - 2024.08.30.xlsx")
 jde_25_55_label <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/Safety Stock Compliance/Weekly Run Files/2024/09.03.2024/JDE 25,55.xlsx")
 lot_status_code <- read_excel("S:/Supply Chain Projects/Data Source (SCE)/Lot Status Code.xlsx")
-rm_to_sku <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/IQR Automation/RM/Weekly Report run/2024/09.03.2024/Raw Material Inventory Health (IQR) NEW TEMPLATE - 09.03.2024.xlsx", 
-                        sheet = "RM to SKU")
 bom <- read_excel("C:/Users/slee/OneDrive - Ventura Foods/Ventura Work/SCE/Project/FY 23/BoM version 2/Weekly Run/2024/09.03.2024/Bill of Material_090324.xlsx")
 campus_ref <- read_excel("S:/Supply Chain Projects/Data Source (SCE)/Campus reference.xlsx")
 
@@ -144,7 +142,9 @@ dplyr::bind_rows(has_on_hand_inventory_fg,
                  zero_on_hand_has_open_orders_fg, 
                  zero_on_hand_zero_open_orders_has_forecast_fg, 
                  active_items_fg) %>%
-  dplyr::distinct(ref) -> final_data_fg
+  dplyr::distinct(ref) %>% 
+  tidyr::separate(ref, c("location", "item")) %>% 
+  dplyr::mutate(ref = paste0(location, "_", item)) -> final_data_fg
 
 
 
@@ -204,8 +204,8 @@ has_on_hand_inventory_rm %>%
 
 bom %>% 
   janitor::clean_names() %>% 
-  dplyr::select(comp_ref, mon_a_fcst, mon_b_fcst, mon_c_fcst, mon_d_fcst, mon_e_fcst, mon_f_fcst) %>% 
-  dplyr::mutate(dep_demand = mon_a_fcst + mon_b_fcst + mon_c_fcst + mon_d_fcst + mon_e_fcst + mon_f_fcst) %>% 
+  dplyr::select(comp_ref, mon_a_dep_demand, mon_b_dep_demand, mon_c_dep_demand, mon_d_dep_demand, mon_e_dep_demand, mon_f_dep_demand) %>% 
+  dplyr::mutate(dep_demand = mon_a_dep_demand + mon_b_dep_demand + mon_c_dep_demand + mon_d_dep_demand + mon_e_dep_demand + mon_f_dep_demand) %>% 
   dplyr::filter(dep_demand > 0) %>% 
   dplyr::select(comp_ref) %>% 
   dplyr::distinct(comp_ref) %>% 
@@ -215,12 +215,10 @@ bom %>%
 
 
 
-
-
-
 #  3. Zero inventory, no dependent demand for next 6 months but show ACTIVE in JDE
 exception_report %>% 
-  janitor::clean_names() %>% 
+  janitor::clean_names() %>%
+  dplyr::filter(mpf_or_line == "LBL" | mpf_or_line == "PKG" | mpf_or_line == "ING") %>% 
   dplyr::select(b_p, item_number) %>% 
   dplyr::left_join(campus_ref %>% janitor::clean_names() %>% select(location, campus) %>% rename(b_p = location)) %>% 
   dplyr::mutate(ref = paste0(campus, "_", item_number)) %>% 
@@ -239,5 +237,7 @@ active_items_rm %>%
 dplyr::bind_rows(has_on_hand_inventory_rm, 
                  zero_on_hand_has_dependent_demand_rm, 
                  active_items_rm) %>%
-  dplyr::distinct(ref) -> final_data_rm
+  dplyr::distinct(ref) %>% 
+  tidyr::separate(ref, c("location", "item")) %>% 
+  dplyr::mutate(ref = paste0(location, "_", item)) -> final_data_rm
 
